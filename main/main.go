@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"v2ray.com/core"
 	"v2ray.com/core/common/platform"
+	"v2ray.com/core/main/confloader"
 )
 
 var (
@@ -41,9 +43,33 @@ func getConfigFilePath() string {
 	return ""
 }
 
-func startV2Ray() {
-	// configFile := getConfigFilePath()
-	getConfigFilePath()
+func GetConfigFormat() string {
+	switch strings.ToLower(*format) {
+	case "pb", "protobuf":
+		return "protobuf"
+	default:
+		return "json"
+	}
+}
+
+func startV2Ray() (error) {
+	configFile := getConfigFilePath()
+	configInput, err := confloader.LoadConfig(configFile)
+	if err != nil {
+		return newError("failed to load config: ", configFile).Base(err)
+		// return err
+	}
+	defer configInput.Close()
+
+	config, err := core.LoadConfig(GetConfigFormat(), configFile, configInput)
+	if err != nil {
+		return newError("failed to read config file: ", configFile).Base(err)
+		// return err
+	}
+
+	fmt.Println(config)
+
+	return nil
 }
 
 func printVersion() {
@@ -59,9 +85,12 @@ func main() {
 	printVersion()
 
 	if *version {
-		fmt.Println("return")
 		return
 	}
 
-	startV2Ray()
+	err := startV2Ray()
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(23)
+	}
 }
