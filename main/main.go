@@ -10,6 +10,7 @@ import (
 	"v2ray.com/core"
 	"v2ray.com/core/common/platform"
 	"v2ray.com/core/main/confloader"
+	_ "v2ray.com/core/main/distro/all"
 )
 
 var (
@@ -52,7 +53,7 @@ func GetConfigFormat() string {
 	}
 }
 
-func startV2Ray() (error) {
+func startV2Ray() error {
 	configFile := getConfigFilePath()
 	configInput, err := confloader.LoadConfig(configFile)
 	if err != nil {
