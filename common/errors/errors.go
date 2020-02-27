@@ -1,4 +1,5 @@
-package errors
+// Package errors is a drop-in replacement for Golang lib 'errors'.
+package errors // import "v2ray.com/core/common/errors"
 
 import (
 	"os"
@@ -18,6 +19,7 @@ type hasSeverity interface {
 	Severity() log.Severity
 }
 
+// Error is an error object with underlying error.
 type Error struct {
 	pathObj  interface{}
 	prefix   []interface{}
@@ -38,7 +40,7 @@ func (err *Error) pkgPath() string {
 	return reflect.TypeOf(err.pathObj).PkgPath()
 }
 
-// Error implements error.Error)().
+// Error implements error.Error().
 func (err *Error) Error() string {
 	builder := strings.Builder{}
 	for _, prefix := range err.prefix {
@@ -64,6 +66,14 @@ func (err *Error) Error() string {
 	return builder.String()
 }
 
+// Inner implements hasInnerError.Inner()
+func (err *Error) Inner() error {
+	if err.inner == nil {
+		return nil
+	}
+	return err.inner
+}
+
 func (err *Error) Base(e error) *Error {
 	err.inner = e
 	return err
@@ -74,11 +84,47 @@ func (err *Error) atSeverity(s log.Severity) *Error {
 	return err
 }
 
+func (err *Error) Severity() log.Severity {
+	if err.inner == nil {
+		return err.severity
+	}
+
+	if s, ok := err.inner.(hasSeverity); ok {
+		as := s.Severity()
+		if as < err.severity {
+			return as
+		}
+	}
+
+	return err.severity
+}
+
+// AtDebug sets the severity to debug.
+func (err *Error) AtDebug() *Error {
+	return err.atSeverity(log.Severity_Debug)
+}
+
+// AtInfo sets the severity to info.
+func (err *Error) AtInfo() *Error {
+	return err.atSeverity(log.Severity_Info)
+}
+
 // AtWarning sets the severity to warning.
 func (err *Error) AtWarning() *Error {
 	return err.atSeverity(log.Severity_Warning)
 }
 
+// AtError sets the severity to error.
+func (err *Error) AtError() *Error {
+	return err.atSeverity(log.Severity_Error)
+}
+
+// String returns the string representation of this error.
+func (err *Error) String() string {
+	return err.Error()
+}
+
+// WriteToLog writes current error into log.
 func (err *Error) WriteToLog(opts ...ExportOption) {
 	var holder ExportOptionHolder
 

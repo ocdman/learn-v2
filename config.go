@@ -6,6 +6,10 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/golang/protobuf/proto"
+	// "v2ray.com/core/common"
+	"v2ray.com/core/common/buf"
 )
 
 // ConfigFormat is a configurable format of V2Ray config file.
@@ -36,7 +40,7 @@ func RegisterConfigLoader(format *ConfigFormat) error {
 		if f, found := configLoaderByExt[lext]; found {
 			return newError(ext, " already registered to ", f.Name)
 		}
-		configLoaderByExt[ext] = format
+		configLoaderByExt[lext] = format
 	}
 
 	fmt.Println("configLoaderByName = ", configLoaderByName)
@@ -74,11 +78,27 @@ func LoadConfig(formatName string, filename string, input io.Reader) (*Config, e
 	return nil, newError("Unable to load config in ", formatName).AtWarning()
 }
 
+func loadProtobufConfig(input io.Reader) (*Config, error) {
+	config := new(Config)
+	data, err := buf.ReadAllToBytes(input)
+	if err != nil {
+		return nil, err
+	}
+	if err := proto.Unmarshal(data, config); err != nil {
+		return nil, err
+	}
+	return config, nil
+}
+
 func init() {
-	fmt.Println("core config.go init")
+	// common.Must(RegisterConfigLoader(&ConfigFormat{
+	// 	Name:      "Protobuf",
+	// 	Extension: []string{"pb"},
+	// 	Loader:    loadProtobufConfig,
+	// }))
 	RegisterConfigLoader(&ConfigFormat{
 		Name:      "Protobuf",
 		Extension: []string{"pb"},
-		// Loader: loadProtobufConfig,
+		Loader:    loadProtobufConfig,
 	})
 }

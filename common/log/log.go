@@ -1,4 +1,4 @@
-package log
+package log // import "v2ray.com/core/common/log"
 
 import (
 	"sync"
@@ -36,7 +36,31 @@ var (
 	logHandler syncHandler
 )
 
+// RegisterHandler register a new handler as current log handler. Previous registered handler will be discarded.
+func RegisterHandler(handler Handler) {
+	if handler == nil {
+		panic("Log handler is nil")
+	}
+	logHandler.Set(handler)
+}
+
 type syncHandler struct {
 	sync.RWMutex
 	Handler
+}
+
+func (h *syncHandler) Handle(msg Message) {
+	h.RLock()
+	defer h.RUnlock()
+
+	if h.Handler != nil {
+		h.Handler.Handle(msg)
+	}
+}
+
+func (h *syncHandler) Set(handler Handler) {
+	h.Lock()
+	defer h.Unlock()
+
+	h.Handler = handler
 }

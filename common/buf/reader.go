@@ -2,6 +2,9 @@ package buf
 
 import (
 	"io"
+
+	"v2ray.com/core/common"
+	"v2ray.com/core/common/errors"
 )
 
 func readOneUDP(r io.Reader) (*Buffer, error) {
@@ -42,6 +45,11 @@ type BufferedReader struct {
 	Spliter func(MultiBuffer, []byte) (MultiBuffer, int)
 }
 
+// BufferedBytes returns the number of bytes that is cached in this reader.
+func (r *BufferedReader) BufferedBytes() int32 {
+	return r.Buffer.Len()
+}
+
 // ReadByte implements io.ByteReader.
 func (r *BufferedReader) ReadByte() (byte, error) {
 	var b [1]byte
@@ -49,6 +57,7 @@ func (r *BufferedReader) ReadByte() (byte, error) {
 	return b[0], err
 }
 
+// Read implements io.Reader. It reads from internal buffer first (if available) and then reads from the underlying reader.
 func (r *BufferedReader) Read(b []byte) (int, error) {
 	spliter := r.Spliter
 	if spliter == nil {
@@ -74,6 +83,69 @@ func (r *BufferedReader) Read(b []byte) (int, error) {
 		r.Buffer = mb
 	}
 	return nBytes, nil
+}
+
+// ReadMultiBuffer implements Reader.
+func (r *BufferedReader) ReadMultiBuffer() (MultiBuffer, error) {
+	if !r.Buffer.IsEmpty() {
+		mb := r.Buffer
+		r.Buffer = nil
+		return mb, nil
+	}
+
+	return r.Reader.ReadMultiBuffer()
+}
+
+// ReadAtMost returns a MultiBuffer with at most size.
+func (r *BufferedReader) ReadAtMost(size int32) (MultiBuffer, error) {
+	if r.Buffer.IsEmpty() {
+		mb, err := r.Reader.ReadMultiBuffer()
+		if mb.IsEmpty() && err != nil {
+			return nil, err
+		}
+		r.Buffer = mb
+	}
+
+	rb, mb := SplitSize(r.Buffer, size)
+	r.Buffer = rb
+	if r.Buffer.IsEmpty() {
+		r.Buffer = nil
+	}
+	return mb, nil
+}
+
+func (r *BufferedReader) writeToInternal(writer io.Writer) (int64, error) {
+	mbWriter := NewWriter(writer)
+	var sc SizeCounter
+	if r.Buffer != nil {
+		sc.Size = int64(r.Buffer.Len())
+		if err := mbWriter.WriteMultiBuffer(r.Buffer); err != nil {
+			return 0, err
+		}
+		r.Buffer = nil
+	}
+
+	err := Copy(r.Reader, mbWriter, CountSize(&sc))
+	return sc.Size, err
+}
+
+// WriteTo implements io.WriterTo.
+func (r *BufferedReader) WriteTo(writer io.Writer) (int64, error) {
+	nBytes, err := r.writeToInternal(writer)
+	if errors.Cause(err) == io.EOF {
+		return nBytes, nil
+	}
+	return nBytes, err
+}
+
+// Interrupt implements common.Interruptible.
+func (r *BufferedReader) Interrupt() {
+	common.Interrupt(r.Reader)
+}
+
+// Close implements io.Closer.
+func (r *BufferedReader) Close() error {
+	return common.Close(r.Reader)
 }
 
 // SingleReader is a Reader that read one Buffer every time.

@@ -7,10 +7,18 @@ import (
 	clog "v2ray.com/core/common/log"
 )
 
+func DefaultLogConfig() *log.Config {
+	return &log.Config{
+		AccessLogType: log.LogType_None,
+		ErrorLogType:  log.LogType_Console,
+		ErrorLogLevel: clog.Severity_Warning,
+	}
+}
+
 type LogConfig struct {
 	AccessLog string `json:"access"`
-	ErrorLog string `json:"error"`
-	LogLevel string `json:"loglevel"`
+	ErrorLog  string `json:"error"`
+	LogLevel  string `json:"loglevel"`
 }
 
 func (v *LogConfig) Build() *log.Config {
